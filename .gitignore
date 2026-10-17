@@ -1,0 +1,28 @@
+# 用户数据与运行时产物
+data/
+*.sqlite3
+*.db
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 备份副本
+*.orig
+*.v*orig
+*.mojibake
+*.repaired
+
+# 产物与模型（体积大，不入库）
+output/
+*.safetensors
+*.ckpt
+*.pth
+
+# 编辑器
+.vscode/
+.idea/
+*.swp

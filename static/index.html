@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>界面 B · ComfyUI 工具集</title>
+<link rel="stylesheet" href="/static/styles.css?v=16">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">B</span>
+    <div>
+      <h1>ComfyUI 工具集</h1>
+      <p>骨架生成 · 图变高清 · 图解析 Tag</p>
+    </div>
+  </div>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">连接中…</span></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="pose">骨架生成</button>
+  <button class="tab" data-tab="upscale">图变高清</button>
+  <button class="tab" data-tab="tag">图解析 Tag</button>
+  <button class="tab" data-tab="real">真人随机生图</button>
+</nav>
+
+<main>
+
+<div class="card outbar" id="outBar">
+  <div class="outrow">
+    <span class="outlabel">产物目录</span>
+    <code id="outPath">读取中…</code>
+    <button class="mini" id="outOpenRoot" type="button">打开根目录</button>
+  </div>
+  <div class="outrow" id="outSubs"></div>
+  <p class="hint" style="margin-top:6px">四张卡片里生成的图/文本都按工具分子目录存在这里；
+    界面上每张结果图下面也会标出它的完整路径。「先抽词后生成」的图也在这里，文件名是「日期_序号」。</p>
+</div>
+
+<!-- ==================== Tab 1 骨架生成 ==================== -->
+<section class="panel active" id="panel-pose">
+  <div class="cols">
+    <div class="col">
+      <div class="card">
+        <h2>输入</h2>
+        <div class="row">
+          <label>输入类型</label>
+          <select id="poseInputType">
+            <option value="extract">参考图片（自动提取骨架）</option>
+            <option value="skeleton">骨架图（黑底纯骨架，直接用）</option>
+          </select>
+        </div>
+        <div class="drop" id="poseDrop">
+          <input type="file" id="poseFile" accept="image/*" hidden>
+          <span>点击选择图片，或拖拽到这里</span>
+        </div>
+        <div class="thumbs" id="poseThumbs"></div>
+        <p class="hint" id="poseInputHint">
+          上传一张有姿势的图片，会自动用 DWPose 提取骨架再生成。提取质量受原图影响，衣服遮挡多时四肢可能不准。        </p>
+      </div>
+
+      <div class="card">
+        <h2>提示词</h2>
+        <label class="lbl">正向提示词</label>
+        <textarea id="posePrompt" rows="5">highres, absurdres, 1girl, solo, long hair, white dress, barefoot, ocean, sunset, backlighting, depth of field</textarea>
+        <label class="lbl">负向提示词</label>
+        <textarea id="poseNegative" rows="3">lowres, blurry, jpeg artifacts, bad anatomy, bad hands, extra limbs, watermark, artist name</textarea>
+        <div class="quick">
+          <button class="mini" data-pose-preset="beach">海边</button>
+          <button class="mini" data-pose-preset="studio">摄影棚</button>
+          <button class="mini" data-pose-preset="city">城市夜景</button>
+          <button class="mini" data-pose-preset="room">室内</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <h2>参数</h2>
+        <div class="row"><label>控制模型</label><select id="posePatch"></select></div>
+        <div class="row"><label>控制强度 <b id="poseStrengthV">1.00</b></label>
+          <input type="range" id="poseStrength" min="0.1" max="1.5" step="0.05" value="1"></div>
+        <div class="row"><label>骨架精度</label>
+          <select id="poseExtractMode">
+            <option value="Full">Full（身+手+脚+脸）</option>
+            <option value="Body with Hands">身体+手</option>
+            <option value="Body with Face">身体+脸</option>
+            <option value="Body Only">仅身体</option>
+          </select></div>
+        <div class="row2">
+          <div><label>宽</label><input type="number" id="poseWidth" value="832" step="64"></div>
+          <div><label>高</label><input type="number" id="poseHeight" value="1216" step="64"></div>
+        </div>
+        <div class="row2">
+          <div><label>步数</label><input type="number" id="poseSteps" value="30"></div>
+          <div><label>CFG</label><input type="number" id="poseCfg" value="4.5" step="0.5"></div>
+        </div>
+        <div class="row"><label>主模型</label><select id="poseUnet"></select></div>
+        <div class="row"><label>LoRA（可选）</label><select id="poseLora"><option value="">（不用）</option></select></div>
+        <div class="row"><label>种子 <span class="hintinline">-1 = 随机</span></label>
+          <input type="number" id="poseSeed" value="-1"></div>
+        <button class="go" id="poseRun">开始生成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card result-card">
+    <h2>结果 <span class="jobstate" id="poseState"></span></h2>
+    <div class="progress"><div class="bar" id="poseBar"></div></div>
+    <div class="result" id="poseResult"></div>
+  </div>
+</section>
+
+<!-- ==================== Tab 2 图变高清 ==================== -->
+<section class="panel" id="panel-upscale">
+  <div class="cols">
+    <div class="col">
+      <div class="card">
+        <h2>输入</h2>
+        <div class="drop" id="upDrop">
+          <input type="file" id="upFile" accept="image/*" hidden>
+          <span>点击选择图片，或拖拽到这里</span>
+        </div>
+        <div class="thumbs" id="upThumbs"></div>
+        <p class="hint">放大模型跑在 CPU/GPU 上，4x 放大一张 1024×1536 大约需要 3 分钟，耐心等。</p>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <h2>参数</h2>
+        <div class="row"><label>放大模型</label><select id="upModel"></select></div>
+        <div class="row"><label>输出方式</label>
+          <select id="upMode">
+            <option value="scale">按模型倍率（4x 就是 4 倍）</option>
+            <option value="target">指定目标尺寸</option>
+          </select></div>
+        <div class="row2" id="upTargetRow" style="display:none">
+          <div><label>目标宽</label><input type="number" id="upWidth" value="2160" step="16"></div>
+          <div><label>目标高</label><input type="number" id="upHeight" value="3240" step="16"></div>
+        </div>
+        <p class="hint" id="upModelHint"></p>
+        <button class="go" id="upRun">开始放大</button>
+      </div>
+    </div>
+  </div>
+  <div class="card result-card">
+    <h2>结果 <span class="jobstate" id="upState"></span></h2>
+    <div class="progress"><div class="bar" id="upBar"></div></div>
+    <div class="result" id="upResult"></div>
+  </div>
+</section>
+
+<!-- ==================== Tab 3 图解析 Tag ==================== -->
+<section class="panel" id="panel-tag">
+  <div class="cols">
+    <div class="col">
+      <div class="card">
+        <h2>输入</h2>
+        <div class="drop" id="tagDrop">
+          <input type="file" id="tagFile" accept="image/*" hidden>
+          <span>点击选择图片，或拖拽到这里</span>
+        </div>
+        <div class="thumbs" id="tagThumbs"></div>
+      </div>
+      <div class="card">
+        <h2>解析方式</h2>
+        <div class="row"><label>模式</label>
+          <select id="tagMode">
+            <option value="anime">动漫 → 反推 Danbooru 标签（WD14）</option>
+            <option value="real">真人 → 反推自然语言描述（Qwen3-VL）</option>
+          </select></div>
+        <div id="tagAnimeOpts">
+          <div class="row"><label>通用阈值 <b id="tagGeneralV">0.35</b></label>
+            <input type="range" id="tagGeneral" min="0.05" max="0.9" step="0.05" value="0.35"></div>
+          <div class="row"><label>角色阈值 <b id="tagCharV">0.85</b></label>
+            <input type="range" id="tagChar" min="0.3" max="0.99" step="0.05" value="0.85"></div>
+        </div>
+        <div id="tagRealOpts" style="display:none">
+          <div class="row"><label>最大长度</label><input type="number" id="tagMaxLen" value="700" step="50"></div>
+          <p class="hint">用 Krea2 自己的视觉编码器 Qwen3-VL 反推，产出的是它读得懂的自然语言，            并且保留光照/机位/色调（WD14 会全丢掉）。</p>
+        </div>
+        <button class="go" id="tagRun">开始解析</button>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card result-card" style="min-height:420px">
+        <h2>结果 <span class="jobstate" id="tagState"></span></h2>
+        <div class="progress"><div class="bar" id="tagBar"></div></div>
+        <div id="tagOutput">
+          <textarea id="tagText" rows="16" placeholder="解析结果会出现在这里…"></textarea>
+          <div class="quick">
+            <button class="mini" id="tagCopy">复制</button>
+            <button class="mini" id="tagToPose">送到「骨架生成」当提示词</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== Tab 4 真人随机生图 ==================== -->
+<section class="panel" id="panel-real">
+  <div class="cols">
+    <div class="col">
+      <div class="card">
+        <h2>模式</h2>
+        <div class="row"><label>生成模式</label>
+          <select id="realMode">
+            <option value="normal">普通真人（不指定角色）</option>
+            <option value="cosplay">Cosplay（指定动漫角色）</option>
+          </select></div>
+        <div id="realCosplayOpts" style="display:none">
+          <div id="realCharacterBox"></div>
+          <p class="hint">按系列分组，<strong>可以勾多个角色</strong> —— 每张图从勾选的角色里抽一个。            用 Danbooru 格式的角色名（如 <code>furina (genshin impact)</code>），Krea2 认这个格式。<br>
+            ⚠️ 实测提醒：coser 措辞偶尔会画出「coser + 角色」两个人，负面里已加「双人 / 多个人」压制。</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>服装 <span class="hintinline">真人版的特色</span></h2>
+        <div class="row"><label>服装模式</label>
+          <select id="realClothingMode">
+            <option value="split">拆分搭配（逐槽多选：发色/发饰/上衣/下衣/鞋/包…）</option>
+            <option value="set">成套服装（多选几套或几个类别）</option>
+          </select></div>
+
+        <div id="realSetBox" style="display:none">
+          <p class="hint" id="realClothingHint"></p>
+          <div id="realClothingFixedBox"></div>
+          <div id="realClothingCatBox"></div>
+        </div>
+
+        <div id="realSplitBox">
+          <p class="hint" id="realSplitHint"></p>
+          <div id="realSlots"></div>
+        </div>
+        <p class="hint" id="realClothingModeHint"></p>
+        <p class="hint"><strong>具体衣服在哪里：</strong>每个槽下面<strong>默认就展开了条目列表</strong>（按类别分组），
+          直接勾选即可；一条不勾 = 该槽全部随机。想收起来点「收起 ▴」，或点槽名那一行也能开合。</p>
+      </div>
+
+      <div class="card">
+        <h2>场景 / 人物 / 动作 <span class="hintinline">每槽都可多选</span></h2>
+        <div id="realBaseSlots"></div>
+        <p class="hint"><strong>勾几条就只从那几条里抽</strong>；一条不勾 = 全部随机；          「不写」= 完全不参与提示词。这六项原本永远是随机的，连 API 都改不了。</p>
+      </div>
+
+      <div class="card">
+        <h2>镜头 <span class="hintinline">成套使用，保证人物清晰</span></h2>
+        <div id="realCameraBox"></div>
+        <p class="hint">景别 / 距离 / 焦段互相绑定，负面会跟着景别自动加（如选全身就压制「半身照、裁切到脚部」）。          <strong>不提供「浅景深 / 背景虚化」当随机项</strong> —— 那是人物模糊的主要来源。</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <h2>参数</h2>
+        <div class="row"><label>宽高比</label><select id="realAspect"></select></div>
+        <div class="row2">
+          <div><label>百万像素</label><input type="number" id="realMegapixels" value="1.5" min="0.1" max="16" step="0.1"></div>
+          <div><label>实际尺寸</label><input type="text" id="realSizePreview" readonly></div>
+        </div>
+        <div class="row"><label>参数预设</label><select id="realParamPreset"></select></div>
+        <div class="row2">
+          <div><label>采样器</label><select id="realSampler"></select></div>
+          <div><label>调度器</label><select id="realScheduler"></select></div>
+        </div>
+        <div class="row2">
+          <div><label>步数</label><input type="number" id="realSteps" value="16" min="1" max="50"></div>
+          <div><label>CFG</label><input type="number" id="realCfg" value="2.5" step="0.5"></div>
+        </div>
+        <div class="row"><label>数量</label><input type="number" id="realCount" value="1" min="1" max="8"></div>
+        <div class="row"><label>种子 <span class="hintinline">-1 = 随机</span></label>
+          <input type="number" id="realSeed" value="-1"></div>
+        <div class="row"><label>主模型</label><select id="realUnet"></select></div>
+        <label class="lbl">LoRA（可叠多个，按顺序串联）</label>
+        <div id="realLoraRows"></div>
+        <div class="row"><label>&nbsp;</label>
+          <button class="mini" id="realLoraAdd" type="button">＋ 再加一个 LoRA</button>
+          <button class="mini" id="realLoraTrigger" type="button">触发词加进提示词</button>
+        </div>
+        <p class="hint" id="realLoraHint">选择 LoRA 后会显示它是什么、推荐强度和触发词。
+          注意这批 LoRA 分属 4 个模型族，跨族使用大概率无效。<br>
+          <strong>多个 LoRA 是依次串联叠加</strong>：风格类叠加安全；<strong>身份/角色类叠加
+          会互相串味</strong>（身份互相渗透），要空间隔离得用社区的区域掩码节点。
+          每行的数字是 <strong>LoRA 强度</strong>。原先还有个 <code>LoRA→CLIP</code> 输入，已删除：实测我们全部 LoRA 的文本编码器侧权重都是 <strong>0 个</strong>，那个开关点不出任何效果。</p>
+        <div class="row"><label>锐化 <span class="hintinline">0 = 关</span></label>
+          <input type="number" id="realSharpen" value="0" min="0" max="3" step="0.1"></div>
+        <div class="row"><label>两段式精修 <span class="hintinline">0 = 关</span></label>
+          <input type="number" id="realRefine" value="0" min="0" max="0.6" step="0.05"></div>
+        <div class="row2">
+          <div><label>精修步数</label><input type="number" id="realRefineSteps" value="4" min="1" max="20"></div>
+          <div><label>精修放大 <span class="hintinline">1 = 不放大</span></label><input type="number" id="realRefineScale" value="1" min="1" max="2" step="0.25"></div>
+          <div><label>放大模型</label><select id="realUpscale"></select></div>
+        </div>
+        <p class="hint"><strong>两段式精修</strong>（替代被否掉的锐化）：第一段正常出图 → 放大模型 4x →
+          缩回 0.5（净 2x）→ 低去噪重绘 → 再解码。第二段<strong>特意用不带 LoRA 的原始模型</strong>，
+          避免风格被二次强化。<strong>去噪 0.15 / 4 步</strong>是参考工作流给的取值。
+          实测耗时<strong>尚未测</strong>，第一次用请先出 1 张看时间。</p>
+        <p class="hint"><strong>官方配方是 8 步 + 低 CFG</strong> —— Turbo 是蒸馏模型，步数或 CFG 更高都会「过熟」。<br>
+          实测同种子：8步/cfg1.0 → 干净 48s；8步/cfg1.5 → 干净 75s；8步/cfg2.5 → 绿色撕裂条纹；          8步/cfg3.5 → 烧图；16步/cfg2.5 → 干净但慢约 4 倍。<br>
+          <code>cfg=1.0</code> 时<strong>负面提示词在数学上完全失效</strong>，想用负面就得 cfg&gt;1；          反过来「置零负面 + 高 cfg」等于把条件放大到崩坏，两者必须配对。<br>
+          官方配方保存前还有一步 <code>ImageSharpen</code>，本机一直漏做。锐化<strong>默认关</strong>，          方便你对比它会不会破坏「光滑干净的写实」。<br>
+          选了 <code>krea2_raw_*</code> 时参数完全不同：<strong>30–52 步 / CFG3.5</strong>（12 步未收敛会出噪点）。</p>
+        <div class="quick">
+          <button class="mini" id="realDraw">只抽词看提示词</button>
+          <button class="mini" id="realRoll">换个种子再抽</button>
+        </div>
+        <button class="go" id="realRun">开始生成</button>
+        <button class="go stop" id="realStop" type="button" style="display:none">■ 停止生成</button>
+      </div>
+
+      <div class="card">
+        <h2>本次抽到的内容</h2>
+        <textarea id="realPrompt" rows="9" placeholder="点「只抽词看提示词」会在这里显示完整提示词…"></textarea>
+        <details style="margin-top:10px">
+          <summary style="cursor:pointer;color:var(--dim);font-size:12px">负面提示词</summary>
+          <textarea id="realNegative" rows="4" style="margin-top:8px"></textarea>
+        </details>
+        <details style="margin-top:10px" open>
+          <summary style="cursor:pointer;color:var(--dim);font-size:12px">抽词明细（每个槽抽到什么、从哪来）</summary>
+          <pre id="realUsed" class="usedbox">（点「只抽词看提示词」或「开始生成」后显示）</pre>
+        </details>
+        <label class="chk" style="margin-top:10px">
+          <input type="checkbox" id="realReuse">
+          <span><strong>用上面文本框里的提示词生成</strong>（不重新抽词）——
+            可以直接改里面的字（比如把衣服颜色改成酒红），然后连着出几张。
+            每张仍然换种子，所以是同一套词的多个变体。</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card result-card">
+    <h2>结果 <span class="jobstate" id="realState"></span></h2>
+    <div class="progress"><div class="bar" id="realBar"></div></div>
+    <div class="result" id="realResult"></div>
+  </div>
+</section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+<script src="/static/app.js?v=16"></script>
+</body>
+</html>
