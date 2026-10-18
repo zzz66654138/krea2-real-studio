@@ -1047,7 +1047,225 @@ async function runReal() {
   }
 }
 
+
+/* ---------------- 直接画图（纯提示词，无随机项） ---------------- */
+let DRAW_JOB = null;
+
+function drawLoraPresetOf(name) { return (REAL_OPTS && REAL_OPTS.lora_presets || {})[name] || {}; }
+
+function addDrawLoraRow() {
+  const rows = $('#drawLoraRows');
+  if (!rows) return;
+  if (rows.children.length >= 8) { toast('最多 8 个 LoRA'); return; }
+  const row = document.createElement('div');
+  row.className = 'lorarow';
+  const sel = document.createElement('select');
+  const none = document.createElement('option');
+  none.value = ''; none.textContent = '（不用）';
+  sel.appendChild(none);
+  ((OPTIONS && OPTIONS.loras) || []).forEach((x) => {
+    const o = document.createElement('option'); o.value = x; o.textContent = x;
+    sel.appendChild(o);
+  });
+  const st = document.createElement('input');
+  st.type = 'number'; st.min = '0'; st.max = '2'; st.step = '0.05'; st.value = '1';
+  st.title = 'LoRA 强度';
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'mini'; del.textContent = '删除';
+  del.addEventListener('click', () => row.remove());
+  sel.addEventListener('change', () => {
+    const p = drawLoraPresetOf(sel.value);
+    if (p.strength != null) st.value = String(p.strength);
+    const hint = $('#drawLoraHint');
+    if (hint) {
+      hint.textContent = sel.value
+        ? ((p.family ? '[' + p.family + ' 族] ' : '') + (p.note || '')
+           + (p.trigger ? '  触发词：' + p.trigger : '')
+           + (p.strength != null ? '  推荐强度 ' + p.strength : ''))
+        : '选择 LoRA 会自动套用登记好的推荐强度。跨模型族会失效，身份类 LoRA 叠加会串味。';
+    }
+  });
+  row.appendChild(sel); row.appendChild(st); row.appendChild(del);
+  rows.appendChild(row);
+}
+
+function drawCollectLoras() {
+  const out = [];
+  const box = $('#drawLoraRows');
+  if (!box) return out;
+  box.querySelectorAll('.lorarow').forEach((r) => {
+    const s = r.querySelector('select');
+    const ns = r.querySelectorAll('input');
+    if (s && s.value) out.push({ name: s.value, strength: Number(ns[0].value || 1), clip: 0 });
+  });
+  return out;
+}
+
+function drawBody() {
+  const num = (sel, dflt) => {
+    const el = $(sel);
+    if (!el) return dflt;
+    const v = parseFloat(el.value);
+    return Number.isFinite(v) ? v : dflt;
+  };
+  return {
+    prompt: ($('#drawPrompt').value || '').trim(),
+    negative: ($('#drawNegative').value || '').trim(),
+    count: Math.max(1, Math.min(8, num('#drawCount', 1))),
+    seed: num('#drawSeed', -1),
+    steps: num('#drawSteps', 8),
+    cfg: num('#drawCfg', 1),
+    sampler: $('#drawSampler').value,
+    scheduler: $('#drawScheduler').value,
+    unet: $('#drawUnet').value,
+    loras: drawCollectLoras(),
+    aspect: $('#drawAspect').value,
+    megapixels: num('#drawMegapixels', 1.5),
+    sharpen: num('#drawSharpen', 0),
+  };
+}
+
+const DRAW_USED_LABELS = {
+  source: '来源',
+  lora: 'LoRA',
+  lora_chain: 'LoRA 串联',
+  lora_note: 'LoRA 说明',
+  lora_trigger: 'LoRA 触发词',
+  lora_warning: '⚠️ LoRA 警告',
+  sharpen: '锐化',
+  negative_note: '负面提示词',
+  minor_safety: '⚠️ 安全闸门（未成年人）',
+  sheer_negative_added: '自动追加负面（薄纱走光压制）',
+  pose_negative_added: '自动追加负面（姿势）',
+  water_negative_added: '自动追加负面（水面）',
+  frame_negative_added: '自动追加负面（取景）',
+  bust_negative_added: '自动追加负面（身材）',
+  framing_conflict: '⚠️ 取景冲突',
+  prompt_length_warning: '⚠️ 提示词过长',
+};
+
+function drawRenderUsed(used) {
+  const box = $('#drawUsed');
+  if (!box) return;
+  if (!used) { box.textContent = '（无）'; return; }
+  const lines = Object.entries(used).map(([k, v]) => {
+    const label = DRAW_USED_LABELS[k] || k;
+    return label + '：' + v;
+  });
+  box.textContent = lines.length ? lines.join('\n') : '（无附加处理——提示词原样发出）';
+}
+
+async function initDrawTab() {
+  if (!$('#panel-draw')) return;
+  if (!REAL_OPTS) {
+    try { REAL_OPTS = await api('/api/real/options'); } catch (e) { console.warn('选项读取失败', e); return; }
+  }
+  // 宽高比
+  const aspectSel = $('#drawAspect');
+  if (aspectSel && !aspectSel.options.length) {
+    (REAL_OPTS.aspect_ratios || ['2:3']).forEach((a) => {
+      const o = document.createElement('option'); o.value = a; o.textContent = a;
+      aspectSel.appendChild(o);
+    });
+    aspectSel.value = '2:3';
+    aspectSel.addEventListener('change', () => {
+      const w = computeSize(aspectSel.value, parseFloat($('#drawMegapixels').value) || 1.5);
+      if (w) $('#drawSizePreview').value = w.w + ' × ' + w.h;
+    });
+    const mp = $('#drawMegapixels');
+    mp.addEventListener('input', () => {
+      const w = computeSize(aspectSel.value, parseFloat(mp.value) || 1.5);
+      if (w) $('#drawSizePreview').value = w.w + ' × ' + w.h;
+    });
+    const w0 = computeSize(aspectSel.value, 1.5);
+    if (w0) $('#drawSizePreview').value = w0.w + ' × ' + w0.h;
+  }
+  // 参数预设
+  const ppSel = $('#drawParamPreset');
+  if (ppSel && !ppSel.options.length) {
+    (REAL_OPTS.param_presets || []).forEach((p, i) => {
+      const o = document.createElement('option'); o.value = String(i); o.textContent = p.name;
+      ppSel.appendChild(o);
+    });
+    const applyPreset = (p) => {
+      if (!p) return;
+      $('#drawSteps').value = String(p.steps);
+      $('#drawCfg').value = String(p.cfg);
+      if (p.sampler) $('#drawSampler').value = p.sampler;
+      if (p.scheduler) $('#drawScheduler').value = p.scheduler;
+    };
+    if ((REAL_OPTS.param_presets || []).length) applyPreset(REAL_OPTS.param_presets[0]);
+    ppSel.addEventListener('change', () => {
+      applyPreset((REAL_OPTS.param_presets || [])[Number(ppSel.value)]);
+    });
+  }
+  // 采样器 / 调度器 / 主模型
+  if (OPTIONS) {
+    const sp = $('#drawSampler'), sc = $('#drawScheduler'), un = $('#drawUnet');
+    if (sp && !sp.options.length) fillSelect(sp, OPTIONS.samplers || ['er_sde']);
+    if (sc && !sc.options.length) fillSelect(sc, OPTIONS.schedulers || ['simple']);
+    if (un && !un.options.length) {
+      fillSelect(un, OPTIONS.unets || []);
+      pickDefault(un, OPTIONS.unets || [], 'krea2_turbo_int8_convrot.safetensors');
+    }
+  }
+  // LoRA 行
+  addDrawLoraRow();
+  const addBtn = $('#drawLoraAdd');
+  if (addBtn) addBtn.addEventListener('click', addDrawLoraRow);
+
+  // 提交 / 停止
+  const runBtn = $('#drawRun');
+  if (runBtn) runBtn.addEventListener('click', runDraw);
+  const stopBtn = $('#drawStop');
+  if (stopBtn) {
+    stopBtn.addEventListener('click', async () => {
+      if (!DRAW_JOB) return;
+      try {
+        await api('/api/job/' + DRAW_JOB + '/cancel', { method: 'POST' });
+        toast('已请求停止');
+      } catch (e) { toast(e.message); }
+    });
+  }
+}
+
+async function runDraw() {
+  const btn = $('#drawRun'), st = $('#drawState'), bar = $('#drawBar'), res = $('#drawResult');
+  const stopBtn = $('#drawStop');
+  const body = drawBody();
+  if (!body.prompt) { toast('请先写正向提示词'); $('#drawPrompt').focus(); return; }
+  btn.disabled = true; res.innerHTML = ''; bar.style.width = '4%';
+  st.innerHTML = '<span class="spinner"></span>提交中…';
+  try {
+    const job = await api('/api/real', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    DRAW_JOB = job.id;
+    if (stopBtn) stopBtn.style.display = '';
+    // 注意：这里绝不回写 #drawPrompt —— 那是用户自己敲的文本，覆盖掉等于毁掉他的稿子
+    const plans = (job.result || {}).plans || [];
+    if (plans[0]) drawRenderUsed(plans[0].used);
+    watchJob(job.id, {
+      stateEl: st, barEl: bar, resultEl: res,
+      onTick: (j) => {
+        const imgs = ((j.result || {}).images) || [];
+        if (imgs.length) renderImages(res, imgs, { '9': '生成结果' });
+      },
+      onDone: (j) => renderImages(res, (j.result || {}).images, { '9': '生成结果' }),
+      onSettled: () => { DRAW_JOB = null; if (stopBtn) stopBtn.style.display = 'none'; },
+    });
+  } catch (e) {
+    st.textContent = '失败';
+    res.innerHTML = '<div class="err-box">' + e.message + '</div>';
+    if (stopBtn) stopBtn.style.display = 'none';
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 400);
+  }
+}
+
 window.addEventListener('load', () => setTimeout(() => {
   initOutputBar();
   initRealTab();
+  initDrawTab();
 }, 800));

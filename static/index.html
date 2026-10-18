@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>界面 B · ComfyUI 工具集</title>
-<link rel="stylesheet" href="/static/styles.css?v=16">
+<link rel="stylesheet" href="/static/styles.css?v=17">
 </head>
 <body>
 
@@ -23,6 +23,7 @@
   <button class="tab active" data-tab="pose">骨架生成</button>
   <button class="tab" data-tab="upscale">图变高清</button>
   <button class="tab" data-tab="tag">图解析 Tag</button>
+  <button class="tab" data-tab="draw">直接画图</button>
   <button class="tab" data-tab="real">真人随机生图</button>
 </nav>
 
@@ -201,6 +202,76 @@
 </section>
 
 <!-- ==================== Tab 4 真人随机生图 ==================== -->
+<section class="panel" id="panel-draw">
+  <div class="cols">
+    <div class="col">
+      <div class="card">
+        <h2>提示词 <span class="hintinline">完全自由写，一个词都不会被替换</span></h2>
+        <label class="lbl">正向提示词</label>
+        <textarea id="drawPrompt" rows="12" placeholder="直接写你想要的东西。
+Krea2 吃自然语言（中英文都行），越具体越好，例如：
+
+Young East Asian woman shown in side-profile, long dark brown hair, crisp white
+short-sleeved blouse, leaning against a wall at night, warm golden light on her
+face, cool teal ambient behind, blurred vending machines, cinematic soft focus.
+
+Camera: 85mm portrait lens, chest-up framing, shallow depth of field."></textarea>
+        <label class="lbl">负面提示词</label>
+        <textarea id="drawNegative" rows="4" placeholder="留空 = 自动使用默认负面（模糊 / 低质量 / 塑料感…）
+想真正留空，填一个占位符号即可。注意：CFG=1.0 时负面在数学上完全失效。"></textarea>
+        <p class="hint"><strong>这个面板没有任何随机项</strong>：没有提示词池、不抽词、
+          不追加额外描述。你写什么就画什么，只有安全闸门（未成年人保护、薄纱走光压制）
+          会在必要时加负面，并<strong>在右下角如实列出</strong>。</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card">
+        <h2>参数</h2>
+        <div class="row"><label>宽高比</label><select id="drawAspect"></select></div>
+        <div class="row2">
+          <div><label>百万像素</label><input type="number" id="drawMegapixels" value="1.5" min="0.1" max="16" step="0.1"></div>
+          <div><label>实际尺寸</label><input type="text" id="drawSizePreview" readonly></div>
+        </div>
+        <div class="row"><label>参数预设</label><select id="drawParamPreset"></select></div>
+        <div class="row2">
+          <div><label>采样器</label><select id="drawSampler"></select></div>
+          <div><label>调度器</label><select id="drawScheduler"></select></div>
+        </div>
+        <div class="row2">
+          <div><label>步数</label><input type="number" id="drawSteps" value="8" min="1" max="60"></div>
+          <div><label>CFG</label><input type="number" id="drawCfg" value="1" min="0" max="10" step="0.1"></div>
+        </div>
+        <div class="row"><label>数量</label><input type="number" id="drawCount" value="1" min="1" max="8"></div>
+        <div class="row"><label>种子 <span class="hintinline">-1 = 随机</span></label>
+          <input type="number" id="drawSeed" value="-1"></div>
+        <div class="row"><label>主模型</label><select id="drawUnet"></select></div>
+        <label class="lbl">LoRA（可叠多个，按顺序串联）</label>
+        <div id="drawLoraRows"></div>
+        <div class="row"><label>&nbsp;</label>
+          <button class="mini" id="drawLoraAdd" type="button">＋ 再加一个 LoRA</button>
+        </div>
+        <p class="hint" id="drawLoraHint">选择 LoRA 会自动套用登记好的推荐强度。
+          跨模型族会失效，身份类 LoRA 叠加会串味。</p>
+        <div class="row"><label>锐化 <span class="hintinline">0 = 关</span></label>
+          <input type="number" id="drawSharpen" value="0" min="0" max="3" step="0.1"></div>
+        <button class="go" id="drawRun">开始画图</button>
+        <button class="go stop" id="drawStop" type="button" style="display:none">■ 停止生成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card result-card">
+    <h2>结果 <span class="jobstate" id="drawState">待提交</span></h2>
+    <div class="progress"><div class="bar" id="drawBar"></div></div>
+    <div class="result" id="drawResult"></div>
+    <details style="margin-top:10px" open>
+      <summary style="cursor:pointer;color:var(--dim);font-size:12px">本次实际发出的内容 / 自动追加的处理</summary>
+      <pre id="drawUsed" class="usedbox">（提交后显示）</pre>
+    </details>
+  </div>
+</section>
+
 <section class="panel" id="panel-real">
   <div class="cols">
     <div class="col">
@@ -343,6 +414,6 @@
 </main>
 
 <div class="toast" id="toast"></div>
-<script src="/static/app.js?v=16"></script>
+<script src="/static/app.js?v=17"></script>
 </body>
 </html>
