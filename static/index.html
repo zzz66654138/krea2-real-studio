@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>界面 B · ComfyUI 工具集</title>
-<link rel="stylesheet" href="/static/styles.css?v=17">
+<link rel="stylesheet" href="/static/styles.css?v=18">
 </head>
 <body>
 
@@ -255,6 +255,17 @@ Camera: 85mm portrait lens, chest-up framing, shallow depth of field."></textare
           跨模型族会失效，身份类 LoRA 叠加会串味。</p>
         <div class="row"><label>锐化 <span class="hintinline">0 = 关</span></label>
           <input type="number" id="drawSharpen" value="0" min="0" max="3" step="0.1"></div>
+        <div class="row"><label>两段式精修 <span class="hintinline">0 = 关</span></label>
+          <input type="number" id="drawRefine" value="0" min="0" max="0.6" step="0.05"></div>
+        <div class="row2">
+          <div><label>精修步数</label><input type="number" id="drawRefineSteps" value="4" min="1" max="20"></div>
+          <div><label>精修放大 <span class="hintinline">1 = 不放大</span></label>
+            <input type="number" id="drawRefineScale" value="1" min="1" max="2" step="0.25"></div>
+        </div>
+        <div class="row"><label>放大模型</label><select id="drawUpscale"></select></div>
+        <p class="hint"><strong>两段式精修</strong>：出完图再放大 → 缩回 → 低去噪重绘一遍，
+          用来补细节。<strong>0 就是关</strong>；开了明显变慢（实测约 +25 秒）。
+          精修放大填 1 表示不放大（原尺寸重绘，最省时间）。</p>
         <button class="go" id="drawRun">开始画图</button>
         <button class="go stop" id="drawStop" type="button" style="display:none">■ 停止生成</button>
       </div>
@@ -414,6 +425,6 @@ Camera: 85mm portrait lens, chest-up framing, shallow depth of field."></textare
 </main>
 
 <div class="toast" id="toast"></div>
-<script src="/static/app.js?v=17"></script>
+<script src="/static/app.js?v=18"></script>
 </body>
 </html>

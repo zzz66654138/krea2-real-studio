@@ -1063,10 +1063,17 @@ function addDrawLoraRow() {
   const none = document.createElement('option');
   none.value = ''; none.textContent = '（不用）';
   sel.appendChild(none);
-  ((OPTIONS && OPTIONS.loras) || []).forEach((x) => {
-    const o = document.createElement('option'); o.value = x; o.textContent = x;
-    sel.appendChild(o);
-  });
+  const loraList = (OPTIONS && OPTIONS.loras) || [];
+  if (!loraList.length) {
+    const warn = document.createElement('option');
+    warn.value = ''; warn.textContent = '（未读到 LoRA 列表 —— 刷新页面重试）';
+    sel.appendChild(warn);
+  } else {
+    loraList.forEach((x) => {
+      const o = document.createElement('option'); o.value = x; o.textContent = x;
+      sel.appendChild(o);
+    });
+  }
   const st = document.createElement('input');
   st.type = 'number'; st.min = '0'; st.max = '2'; st.step = '0.05'; st.value = '1';
   st.title = 'LoRA 强度';
@@ -1122,6 +1129,10 @@ function drawBody() {
     aspect: $('#drawAspect').value,
     megapixels: num('#drawMegapixels', 1.5),
     sharpen: num('#drawSharpen', 0),
+    refine: num('#drawRefine', 0),
+    refine_steps: num('#drawRefineSteps', 4),
+    refine_scale: num('#drawRefineScale', 1),
+    upscale_model: $('#drawUpscale') ? $('#drawUpscale').value : '',
   };
 }
 
@@ -1157,6 +1168,11 @@ function drawRenderUsed(used) {
 
 async function initDrawTab() {
   if (!$('#panel-draw')) return;
+  // loadOptions() 在启动时是 fire-and-forget，/api/options 又比较慢。
+  // 不在这里等它，LoRA 下拉会在空列表上建好并且永不重填 —— 这就是「加不了、选不了」的根因。
+  if (!OPTIONS) {
+    try { await loadOptions(); } catch (e) { console.warn('选项加载失败', e); }
+  }
   if (!REAL_OPTS) {
     try { REAL_OPTS = await api('/api/real/options'); } catch (e) { console.warn('选项读取失败', e); return; }
   }
@@ -1207,6 +1223,11 @@ async function initDrawTab() {
     if (un && !un.options.length) {
       fillSelect(un, OPTIONS.unets || []);
       pickDefault(un, OPTIONS.unets || [], 'krea2_turbo_int8_convrot.safetensors');
+    }
+    const up = $('#drawUpscale');
+    if (up && !up.options.length) {
+      fillSelect(up, OPTIONS.upscalers || []);
+      pickDefault(up, OPTIONS.upscalers || [], ['4x_foolhardy_Remacri.safetensors']);
     }
   }
   // LoRA 行
